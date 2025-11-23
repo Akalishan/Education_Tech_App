@@ -1,98 +1,159 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useColorScheme } from '@/components/useColorScheme';
+import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { FlatList, Image, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { AppDispatch } from '../../store';
+import { fetchCourses } from '../../store/coursesSlice';
+import {
+  addFavouriteForUser,
+  loadFavouritesForUser,
+  removeFavouriteForUser,
+} from '../../store/favouritesSlice';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Hello world</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const dispatch = useDispatch<AppDispatch>();
+  const router = useRouter();
+  const courses = useSelector((state: any) => state.courses.items);
+  const loading = useSelector((state: any) => state.courses.loading);
+  const favourites = useSelector((state: any) => state.favourites.items);
+  const user = useSelector((state: any) => state.auth.user);
+  const systemScheme = useColorScheme();
+  const [darkMode, setDarkMode] = useState(systemScheme === 'dark');
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    dispatch(fetchCourses());
+    const userId = user?.id || user?.username;
+    if (userId) {
+      dispatch(loadFavouritesForUser(String(userId)));
+    }
+  }, [dispatch, user]);
+
+  const handleFavourite = (id: number) => {
+    const userId = user?.id || user?.username;
+    if (!userId) return;
+    if (favourites.includes(id)) {
+      dispatch(removeFavouriteForUser({ userId: String(userId), id }));
+    } else {
+      dispatch(addFavouriteForUser({ userId: String(userId), id }));
+    }
+  };
+
+  const backgroundColor = darkMode ? '#000' : '#fff';
+  const textColor = darkMode ? '#fff' : '#000';
+  const cardColor = darkMode ? '#222' : '#f9f9f9';
+
+  return (
+    <View style={[styles.container, { backgroundColor }]}> 
+      <View style={styles.headerRow}>
+        <Text style={[styles.title, { color: textColor }]}>Courses</Text>
+        <View style={styles.toggleRow}>
+          <Feather name={darkMode ? 'moon' : 'sun'} size={24} color={darkMode ? '#FFD700' : '#007AFF'} />
+          <Switch
+            value={darkMode}
+            onValueChange={setDarkMode}
+            thumbColor={darkMode ? '#FFD700' : '#007AFF'}
+          />
+        </View>
+      </View>
+      {loading ? (
+        <Text style={[styles.loading, { color: textColor }]}>Loading...</Text>
+      ) : (
+        <FlatList
+          data={courses}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardColor }]}
+              onPress={() => router.push({ pathname: '/[id]' as any, params: { id: item.id } })}
+            >
+              <Image source={{ uri: item.thumbnail }} style={styles.image} />
+              <View style={styles.info}>
+                <Text style={[styles.courseTitle, { color: textColor }]}>{item.title}</Text>
+                <Text style={[styles.description, { color: textColor }]}>{item.description}</Text>
+                <Text style={[styles.status, { color: darkMode ? '#FFD700' : '#007AFF' }]}>{item.status}</Text>
+                <TouchableOpacity
+                  style={styles.favBtn}
+                  onPress={() => handleFavourite(item.id)}
+                >
+                  <Feather
+                    name={favourites.includes(item.id) ? 'star' : 'star'}
+                    size={24}
+                    color={favourites.includes(item.id) ? '#FFD700' : '#ccc'}
+                  />
+                  <Text style={[styles.favText, { color: favourites.includes(item.id) ? '#FFD700' : '#ccc' }]}>{favourites.includes(item.id) ? 'Favourited' : 'Favourite'}</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    padding: 20,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  loading: {
+    fontSize: 18,
+    alignSelf: 'center',
+    marginTop: 40,
+  },
+  card: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    marginBottom: 15,
+    padding: 10,
+    alignItems: 'center',
+    elevation: 2,
+  },
+  image: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  info: {
+    flex: 1,
+  },
+  courseTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  description: {
+    fontSize: 14,
+    marginVertical: 4,
+  },
+  status: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  favBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  favText: {
+    marginLeft: 6,
+    fontWeight: 'bold',
   },
 });
